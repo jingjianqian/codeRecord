@@ -8,8 +8,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @SuppressWarnings("unused")
 public class GetOaMessageAction {
 	
-	
+	//链接oa系统数据库的jdbc
 	private JdbcTemplate oaJdbcTemplate = null;
+	//档案系统的jdbc
+	private JdbcTemplate dagJdbcTemplate = null;
 	/*
 	 * 需要拉取得表格
 	*/
@@ -49,6 +51,11 @@ public class GetOaMessageAction {
 	private final String OA_DB_ACCEPT = "tbl_lg_db_swcld";
 	//	select * from tbl_lg_db_dwfw;										#党委发文
 	private final String OA_DW_SEND = "tbl_lg_db_dwfw";
+	
+	/**
+	 * oa附件表
+	 */
+	private final  String OA_FILE_TBL = "tbl_file";							//oa附件表
 	
 	/**
 	 * 中间表，记录已经被拉取的记录
@@ -126,11 +133,56 @@ public class GetOaMessageAction {
 						"c_Received,c_Urgency,c_FileNo,c_Page,c_TypeNo,c_BGLimited,c_DUsers,c_s_ResponseBy,c_ToDate,c_Notions_YBZR,c_Notions_FGXLD,c_Notions_XGRY,c_Notions_QTCY,c_Notions_DBQK",//16
 						"c_Type,c_QFMan,c_QFDate,c_Importance,c_overtime,c_closedata,c_Urgency,c_reason,c_Date,c_Writer,c_Dept,c_Notions_BMLD,c_Notions_XGBM,c_Notions_FGXLDHQ,c_Notions_BGS,c_Notions_DBZR,c_Notions_FGXLD,c_Notions_XLD,c_Notions_XD,c_XDR,c_XDSJ,c_Notions_WMK,c_Date_1,c_SendUnit,c_Phone,c_KeyWords,c_PrnCopies,c_ToInUnit,c_CcInUnit" //17
 				};
+				/**
+				 * OA所需要的字段 一一对应
+
+				 */
+				String[]  tblCloumns_need = {
+						"c_s_DocNo,c_Body,c_Title,c_KeyWords",//----------------------------------------------01	tbl_lg_hqc_gwcld							
+						"c_FileNo,c_Page,c_TypeNo,c_BGLimited,c_s_ResponseBy",//------------------------------02	tbl_lg_jcsjc_swcld							
+						"c_s_DocNo,c_Body,c_Date,c_Title,c_KeyWords",//---------------------------------------03	tbl_lg_cwc_fwcld												
+						"c_s_DocNo,c_Date,c_Title,c_KeyWords",//----------------------------------------------04	tbl_lg_kjc_kjcfwlc													
+						"c_s_DocNo,c_Date,c_Title,c_KeyWords",//----------------------------------------------05	tbl_lg_jwc_zsbgwcld												
+						"c_s_DocNo,c_Title,c_KeyWords",//-----------------------------------------------------06														
+						"c_s_DocNo,c_Date,c_Title,c_KeyWords",//----------------------------------------------07
+						"c_s_DocNo,c_Title,c_OriginFileDate,c_BGLimited,c_s_ResponseBy",//--------------------08							
+						"c_Title,c_SN_1,c_Body",//------------------------------------------------------------09	
+						"c_Title,c_OriginFileDate,c_FileNo,c_s_ResponseBy",//---------------------------------10										
+						"c_s_DocNo,c_Date,c_Title,c_KeyWords",//----------------------------------------------11													
+						"c_s_DocNo,c_Date,c_Title,c_KeyWords",//----------------------------------------------12													
+						"c_s_DocNo,c_Date,c_Title,c_KeyWords",//----------------------------------------------13													
+						"c_s_DocNo,c_Date,c_KeyWords",//------------------------------------------------------14														
+						"c_FileNo,c_Page,c_TypeNo,c_BGLimited,c_s_ResponseBy,c_OriginFileDate",//-------------15					
+						"c_FileNo,c_Page,c_TypeNo,c_BGLimited,c_s_ResponseBy",//------------------------------16									
+						"c_Date,c_KeyWords"//-----------------------------------------------------------------17	
+				};
+				
+				String[] insertCloumns = {
+						"FILE_NO,REMARK,TITLE_PROPER,TITLE",//------------------------------------------------01	tbl_lg_hqc_gwcld															
+						"FILE_NO,AMOUNT_OF_PAGES,SERIES_CODE,RETENTION_PERIOD,AUTHOR",//----------------------02	tbl_lg_jcsjc_swcld	           				
+						"FILE_NO,REMARK,DATE_OF_CREATION,TITLE_PROPER,TITLE",//-------------------------------03	tbl_lg_cwc_fwcld	                                 	
+						"FILE_NO,DATE_OF_CREATION,TITLE_PROPER,TITLE",//--------------------------------------04	tbl_lg_kjc_kjcfwlc		                                         	
+						"FILE_NO,DATE_OF_CREATION,TITLE_PROPER,TITLE",//--------------------------------------05	tbl_lg_jwc_zsbgwcld			                                        	
+						"FILE_NO,TITLE_PROPER,TITLE",//-------------------------------------------------------06                                                          	
+						"FILE_NO,DATE_OF_CREATION,TITLE_PROPER,TITLE",//--------------------------------------07                                         	
+						"FILE_NO,TITLE_PROPER,DATE_OF_CREATION,RETENTION_PERIOD,AUTHOR",//--------------------08                      	
+						"TITLE_PROPER,FILE_NO,REMARK",//------------------------------------------------------09                                                         	
+						"TITLE_PROPER,DATE_OF_CREATION,FILE_NO,AUTHOR",//-------------------------------------10                                        	
+						"FILE_NO,DATE_OF_CREATION,TITLE_PROPER,TITLE",//--------------------------------------11                                         	
+						"FILE_NO,DATE_OF_CREATION,TITLE_PROPER,TITLE",//--------------------------------------12                                         	
+						"FILE_NO,DATE_OF_CREATION,TITLE_PROPER,TITLE",//--------------------------------------13                                         	
+						"FILE_NO,DATE_OF_CREATION,TITLE", //--------------------------------------------------14                                                    	
+						"FILE_NO,AMOUNT_OF_PAGES,SERIES_CODE,RETENTION_PERIOD,AUTHOR,DATE_OF_CREATION",//-----15       	
+						"FILE_NO,AMOUNT_OF_PAGES,SERIES_CODE,RETENTION_PERIOD,AUTHOR",//----------------------16                        	
+						"DATE_OF_CREATIONTITLE"//-------------------------------------------------------------17
+				};
+				
 				for(int tblIn = 0;tblIn<tables.length;tblIn++){
-					String currTableName = tables[tblIn];//当前处理的表名
+					String currTableName = tables[tblIn];														//当前处理的表名
 					StringBuilder currGetOaSb = new StringBuilder();
+					StringBuilder currInsertDagSb = new StringBuilder();
 					currGetOaSb.append(" SELECT T.c_id,");
-					currGetOaSb.append(tblCloumns[tblIn]);
+					currGetOaSb.append(tblCloumns_need[tblIn]);
 					currGetOaSb.append(" from ");
 					currGetOaSb.append(tables[tblIn]).append(" T ");
 					currGetOaSb.append(" WHERE NOT EXISTS ");
@@ -170,8 +222,54 @@ public class GetOaMessageAction {
 							}
 							/*
 							 * @step3 将条目数据拉取到档案室系统行政档案表中
+							 * ARCHIVE_NO, AUTHOR,FILE_NO, TITLE_PROPER,DATE_OF_CREATION,AMOUNT_OF_PAGES,COMBIN_ASSOCIATE_STATUS,ASSOCIATE_FLAG,STATUS
 							 */
 							//TODO jingjianqian 
+							currInsertDagSb.setLength(0);
+							currInsertDagSb.append("SELECT MAX(ID) AS CUR_ID FROM ").append(DAG_T_AR_XZ_FILE);
+							
+							Object currIntIdObj  = ((Map)dagJdbcTemplate.queryForList(currInsertDagSb.toString()).get(0)).get("CUR_ID");
+							int currInt = Integer.parseInt(currIntIdObj.toString());
+							int currColLen = insertCloumns[i].split(",").length;//当前表自定义字段个数
+							String[] currColStrArr = insertCloumns[i].split(",");
+							currInsertDagSb.setLength(0);
+							currInsertDagSb.append("INSERT INTO ").append(DAG_T_AR_XZ_FILE);
+							currInsertDagSb.append("(id, TITLE_PROPER,CATALOGUE_NAME,STATUS,ARCHIVE_TYPE_ID,fonds_code,FILING_DEPT,");
+							for(int curColIn = 0;curColIn<currColLen;curColIn++){
+								currInsertDagSb.append("'");
+								currInsertDagSb.append(currColStrArr[curColIn]);
+								currInsertDagSb.append("'");
+								if(curColIn!=currColLen-1){
+									currInsertDagSb.append(",");
+								}
+							}
+							currInsertDagSb.append("VALUES(");
+							/**
+							 * 固定字段
+							 */
+							currInsertDagSb.append(currInt+1).append(",");					//id
+							currInsertDagSb.append("'").append(currInt+1).append("',");		//TITLE_PROPER
+							currInsertDagSb.append("'").append("OA系统").append("',");		//CREATE_USER
+							currInsertDagSb.append("'").append("01").append("',");			//STATUS
+							currInsertDagSb.append("").append("10832").append(",");;		//ARCHIVE_TYPE_ID
+							currInsertDagSb.append("'210',");								//fonds_code
+							currInsertDagSb.append("'1063',");								//FILING_DEPT
+							for(int curColIn = 0;curColIn<currColLen;curColIn++){
+								currInsertDagSb.append("'");
+								currInsertDagSb.append(((Map)currOaList.get(i)).get(currColStrArr[curColIn]));
+								currInsertDagSb.append("'");
+								if(curColIn!=currColLen-1){
+									currInsertDagSb.append(",");
+								}
+							}
+							/**
+							 * 自定义匹配字段
+							 */
+							//for(int insertColI = 0;insertColI<10;insertColI++){
+							//}
+							currInsertDagSb.append(")");
+							
+							dagJdbcTemplate.execute(currInsertDagSb.toString());
 							/*
 							 * @step4 将对应的附件拷贝到服务器并且插入关联记录
 							 */
@@ -187,36 +285,6 @@ public class GetOaMessageAction {
 						System.out.println(currOaList.size());
 					}
 				}
-				/**
-				 * NO1  #教务处招生办公文处理单
-				 * =============================================
-				 *  c_s_DocNo,c_Type  ,c_QFMan,c_QFDate,c_Importance,c_overtime,c_closedata,c_Urgency,c_reason,c_Date ,c_Writer,c_Dept  ,c_Notions_BMLD,c_Notion_HG,c_Notions_FGXLD,c_Title,c_SendUnit,c_Phone,c_KeyWords,c_PrnCopies,c_ToInUnit,c_CcInUnit
-					发文字号	 ,发文类型 ,签发人  ,签发日期  ,密级                ,保密期限     ,保密日期       ,缓急          ,定密依据 ,拟稿日期,拟稿人     ,拟稿处室,本部门领导核稿  ,相关部门会稿,分管校领导签发   ,题名       ,发文单位     ,电话       ,主题词        ,打印份数       ,主送单位     ,抄送单位
-				 * =============================================
-				 */
-				//需要的字段
-				/*StringBuilder OA_CWC_SEND_CL_SB = new StringBuilder();
-				OA_CWC_SEND_CL_SB.append("c_id,c_s_DocNo,c_Type  ,c_QFMan,c_QFDate,c_Importance,c_overtime,c_closedata,c_Urgency,c_reason,c_Date ,c_Writer,c_Dept ,");
-				OA_CWC_SEND_CL_SB.append("c_Notions_BMLD,c_Notion_HG,c_Notions_FGXLD,c_Title,c_SendUnit,c_Phone,c_KeyWords,c_PrnCopies,c_ToInUnit,c_CcInUnit");
-				//拼接SQL
-				StringBuilder get_OA_CWC_SEND_SB_SQL = new StringBuilder();
-				
-				get_OA_CWC_SEND_SB_SQL.append(" select ");
-				get_OA_CWC_SEND_SB_SQL.append(OA_CWC_SEND_CL_SB.toString());
-				get_OA_CWC_SEND_SB_SQL.append(" from ");
-				get_OA_CWC_SEND_SB_SQL.append(OA_KJC_SEND).append(" t ");
-				get_OA_CWC_SEND_SB_SQL.append(" where not EXISTS ");
-				get_OA_CWC_SEND_SB_SQL.append(" (select 1 from ").append(OA_GETED).append(" p where t.c_id = p.oa_table_id) ");
-				get_OA_CWC_SEND_SB_SQL.append(" limit 0,100 ");
-				
-				@SuppressWarnings("rawtypes")
-				List tempCWCList = oaJdbcTemplate.queryForList(get_OA_CWC_SEND_SB_SQL.toString());
-				if(tempCWCList.size()>0){
-					for(int i = 0 ; i < tempCWCList.size() ; i++) {
-						  Map tempMap =  (Map) tempCWCList.get(i);
-						System.out.println(tempMap.get("c_id"));
-						}
-				}*/
 			} catch (Exception e) {
 				e.printStackTrace();
 			}finally{
@@ -236,4 +304,43 @@ public class GetOaMessageAction {
 	public void setOaJdbcTemplate(JdbcTemplate oaJdbcTemplate) {
 		this.oaJdbcTemplate = oaJdbcTemplate;
 	}
+
+	public JdbcTemplate getDagJdbcTemplate() {
+		return dagJdbcTemplate;
+	}
+
+	public void setDagJdbcTemplate(JdbcTemplate dagJdbcTemplate) {
+		this.dagJdbcTemplate = dagJdbcTemplate;
+	}
+	/**
+	 * NO1  #教务处招生办公文处理单
+	 * =============================================
+	 *  c_s_DocNo,c_Type  ,c_QFMan,c_QFDate,c_Importance,c_overtime,c_closedata,c_Urgency,c_reason,c_Date ,c_Writer,c_Dept  ,c_Notions_BMLD,c_Notion_HG,c_Notions_FGXLD,c_Title,c_SendUnit,c_Phone,c_KeyWords,c_PrnCopies,c_ToInUnit,c_CcInUnit
+		发文字号	 ,发文类型 ,签发人  ,签发日期  ,密级                ,保密期限     ,保密日期       ,缓急          ,定密依据 ,拟稿日期,拟稿人     ,拟稿处室,本部门领导核稿  ,相关部门会稿,分管校领导签发   ,题名       ,发文单位     ,电话       ,主题词        ,打印份数       ,主送单位     ,抄送单位
+	 * =============================================
+	 */
+	//需要的字段
+	/*StringBuilder OA_CWC_SEND_CL_SB = new StringBuilder();
+	OA_CWC_SEND_CL_SB.append("c_id,c_s_DocNo,c_Type  ,c_QFMan,c_QFDate,c_Importance,c_overtime,c_closedata,c_Urgency,c_reason,c_Date ,c_Writer,c_Dept ,");
+	OA_CWC_SEND_CL_SB.append("c_Notions_BMLD,c_Notion_HG,c_Notions_FGXLD,c_Title,c_SendUnit,c_Phone,c_KeyWords,c_PrnCopies,c_ToInUnit,c_CcInUnit");
+	//拼接SQL
+	StringBuilder get_OA_CWC_SEND_SB_SQL = new StringBuilder();
+	
+	get_OA_CWC_SEND_SB_SQL.append(" select ");
+	get_OA_CWC_SEND_SB_SQL.append(OA_CWC_SEND_CL_SB.toString());
+	get_OA_CWC_SEND_SB_SQL.append(" from ");
+	get_OA_CWC_SEND_SB_SQL.append(OA_KJC_SEND).append(" t ");
+	get_OA_CWC_SEND_SB_SQL.append(" where not EXISTS ");
+	get_OA_CWC_SEND_SB_SQL.append(" (select 1 from ").append(OA_GETED).append(" p where t.c_id = p.oa_table_id) ");
+	get_OA_CWC_SEND_SB_SQL.append(" limit 0,100 ");
+	
+	@SuppressWarnings("rawtypes")
+	List tempCWCList = oaJdbcTemplate.queryForList(get_OA_CWC_SEND_SB_SQL.toString());
+	if(tempCWCList.size()>0){
+		for(int i = 0 ; i < tempCWCList.size() ; i++) {
+			  Map tempMap =  (Map) tempCWCList.get(i);
+			System.out.println(tempMap.get("c_id"));
+			}
+	}*/
+	
 }

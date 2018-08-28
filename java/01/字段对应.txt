@@ -1,0 +1,84 @@
+"c_s_DocNo,c_Body,c_Title,c_KeyWords"													01    4
+c_FileNo,c_Page,c_TypeNo,c_BGLimited,c_s_ResponseBy"									02	  5	
+c_s_DocNo,c_Body,c_Date,c_Title,c_KeyWords"												03	  5
+"c_s_DocNo,c_Date,c_Title,c_KeyWords"													04	  4
+"c_s_DocNo,c_Date,c_Title,c_KeyWords"													05	  4		
+"c_s_DocNo,c_Title,c_KeyWords"															06	  3
+"c_s_DocNo,c_Date,c_Title,c_KeyWords"													07	  4
+"c_s_DocNo,c_Title,c_OriginFileDate,c_BGLimited,c_s_ResponseBy"							08	  5
+"c_Title,c_SN_1,c_Body"																	09	  3
+"c_Title,c_OriginFileDate,c_FileNo,c_s_ResponseBy"										10	  4
+"c_s_DocNo,c_Date,c_Title,c_KeyWords"													11	  4		
+"c_s_DocNo,c_Date,c_Title,c_KeyWords"													12	  4
+"c_s_DocNo,c_Date,c_Title,c_KeyWords"													13	  4
+"c_s_DocNo,c_Date,c_KeyWords"															14	  3
+"c_FileNo,c_Page,c_TypeNo,c_BGLimited,c_s_ResponseBy,c_OriginFileDate"					15	  6
+"c_FileNo,c_Page,c_TypeNo,c_BGLimited,c_s_ResponseBy"									16	  5
+"c_Date,c_KeyWords"																		17	  2
+
+"FILE_NO,REMARK,TITLE_PROPER,TITLE"														01	  4
+"FILE_NO,AMOUNT_OF_PAGES,SERIES_CODE,RETENTION_PERIOD,AUTHOR"            				02	  5
+"FILE_NO,REMARK,DATE_OF_CREATION,TITLE_PROPER,TITLE"                                 	03	  5
+"FILE_NO,DATE_OF_CREATION,TITLE_PROPER,TITLE"                                         	04	  4
+"FILE_NO,DATE_OF_CREATION,TITLE_PROPER,TITLE"                                        	05	  4
+"FILE_NO,TITLE_PROPER,TITLE"                                                          	06	  3
+"FILE_NO,DATE_OF_CREATION,TITLE_PROPER,TITLE"                                         	07	  4
+"FILE_NO,TITLE_PROPER,DATE_OF_CREATION,RETENTION_PERIOD,AUTHOR"                       	08	  5
+"TITLE_PROPER,FILE_NO,REMARK"                                                         	09	  3
+"TITLE_PROPER,DATE_OF_CREATION,FILE_NO,AUTHOR"                                        	10	  4
+"FILE_NO,DATE_OF_CREATION,TITLE_PROPER,TITLE"                                         	11	  4
+"FILE_NO,DATE_OF_CREATION,TITLE_PROPER,TITLE"                                         	12	  4
+"FILE_NO,DATE_OF_CREATION,TITLE_PROPER,TITLE"                                         	13	  3
+"FILE_NO,DATE_OF_CREATION,TITLE"                                                     	14	  3
+"FILE_NO,AMOUNT_OF_PAGES,SERIES_CODE,RETENTION_PERIOD,AUTHOR,DATE_OF_CREATION"        	15	  6
+"FILE_NO,AMOUNT_OF_PAGES,SERIES_CODE,RETENTION_PERIOD,AUTHOR"                         	16	  5
+"DATE_OF_CREATIONTITLE"                                                               	17	  2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
