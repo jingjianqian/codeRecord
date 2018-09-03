@@ -1,9 +1,22 @@
 package ces.timer.action;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+
+import ces.gdda.archives.borrowUsing.bean.ArchiveBorrow;
+import ces.gdda.common.ArchiveCommon;
+
 
 @SuppressWarnings("unused")
 public class GetOaMessageAction {
@@ -51,11 +64,20 @@ public class GetOaMessageAction {
 	private final String OA_DB_ACCEPT = "tbl_lg_db_swcld";
 	//	select * from tbl_lg_db_dwfw;										#党委发文
 	private final String OA_DW_SEND = "tbl_lg_db_dwfw";
-	
 	/**
 	 * oa附件表
 	 */
 	private final  String OA_FILE_TBL = "tbl_file";							//oa附件表
+	
+	private final String OA_FILE_URL = "http://210.34.213.66/servlet/ArchiveFileServlet?";
+	
+	//http://210.34.213.66/servlet/ArchiveFileServlet?n=参数n&id=参数id
+	//参数n是数据库文件名(c_name字段)的urlencode 编码
+	//参数id是数据库文件路径（c_path字段）的urlencode编码
+	
+	String currOATableName = null;//当前操作的OA主表
+	String currOATableID = null;//当前操作的OA主表的id
+	
 	
 	/**
 	 * 中间表，记录已经被拉取的记录
@@ -65,19 +87,30 @@ public class GetOaMessageAction {
 	 * 需要
 	 */
 	private final String DAG_T_AR_XZ_FILE = "T_FILE_XZ";
+	private final String DAG_DOCUMENT = "T_ARCHIVE_DOCUMENT";				//附件表
+	private final String DAG_DOCUMET_BASE_PATH = "";
 	/**
 	 * 处理状态，默认上个timer还没有执行结束
 	 */
 	public int thisTaskStatus = 0;
+	
+	/**
+	 * 相关sql的Sb
+	 */
+	StringBuilder currGetOaSb = new StringBuilder();//----------------------专门拼接获取oa数据的sql
+	StringBuilder currInsertDagSb = new StringBuilder();//------------------专门拼接将oa数据插入到档案系统的sql
+	StringBuilder rollBackSb = new StringBuilder();//-----------------------专门拼接混滚中间表的的sql
 	/**
 	 * 定时器要执行的方法
 	 * @throws InterruptedException 
 	 */
 	public void getOaMessage() throws InterruptedException{
 		
-		System.out.println("this is a timer for getOaMessage! >  " + thisTaskStatus);
+		//System.out.println("this is a timer for getOaMessage! >  " + thisTaskStatus);
+		
+		
 		if(thisTaskStatus==1){
-			System.out.println("正在处理前100条数据！！！！");
+			//System.out.println("正在处理前100条数据！！！！");
 		}else{
 			/** 
 			 * =============================================
@@ -135,7 +168,6 @@ public class GetOaMessageAction {
 				};
 				/**
 				 * OA所需要的字段 一一对应
-
 				 */
 				String[]  tblCloumns_need = {
 						"c_s_DocNo,c_Body,c_Title,c_KeyWords",//----------------------------------------------01	tbl_lg_hqc_gwcld							
@@ -174,13 +206,13 @@ public class GetOaMessageAction {
 						"FILE_NO,DATE_OF_CREATION,TITLE", //--------------------------------------------------14                                                    	
 						"FILE_NO,AMOUNT_OF_PAGES,SERIES_CODE,RETENTION_PERIOD,AUTHOR,DATE_OF_CREATION",//-----15       	
 						"FILE_NO,AMOUNT_OF_PAGES,SERIES_CODE,RETENTION_PERIOD,AUTHOR",//----------------------16                        	
-						"DATE_OF_CREATIONTITLE"//-------------------------------------------------------------17
+						"DATE_OF_CREATION,TITLE"//------------------------------------------------------------17
 				};
 				
 				for(int tblIn = 0;tblIn<tables.length;tblIn++){
 					String currTableName = tables[tblIn];														//当前处理的表名
-					StringBuilder currGetOaSb = new StringBuilder();
-					StringBuilder currInsertDagSb = new StringBuilder();
+					currOATableName = currTableName;															//当前处理表名					
+					currGetOaSb.setLength(0);
 					currGetOaSb.append(" SELECT T.c_id,");
 					currGetOaSb.append(tblCloumns_need[tblIn]);
 					currGetOaSb.append(" from ");
@@ -188,7 +220,7 @@ public class GetOaMessageAction {
 					currGetOaSb.append(" WHERE NOT EXISTS ");
 					currGetOaSb.append(" (SELECT  1 FROM  ").append(OA_GETED).append(" P WHERE  T.c_id = P.oa_table_id) ");
 					currGetOaSb.append(" LIMIT 0,100 ");
-					System.out.println(currGetOaSb.toString());
+					//System.out.println(currGetOaSb.toString());
 					List<?> currOaList = oaJdbcTemplate.queryForList(currGetOaSb.toString());
 					if(currOaList.size()>0){
 						for(int i = 0 ; i < currOaList.size() ; i++) {
@@ -196,6 +228,7 @@ public class GetOaMessageAction {
 							 * @step1  判断当前记录是否已经插入到中间表中
 							 */
 							Object currIntId = ((Map)currOaList.get(i)).get("c_id");
+							currOATableID = currIntId.toString();
 							currGetOaSb.setLength(0);
 							currGetOaSb.append("select id from ").append(OA_GETED).append(" t where t.oa_table = ").append("'").append(currTableName).append("' and t.oa_table_id = '").append(currIntId).append("'");
 							if(oaJdbcTemplate.queryForList(currGetOaSb.toString()).size()!=0){
@@ -204,7 +237,7 @@ public class GetOaMessageAction {
 								 */
 								//INSERT INTO oa_zx_geted (oa_table,oa_table_id,status) values('TABL1','3999','1');
 								currGetOaSb.setLength(0);
-								currGetOaSb.append("update ").append(OA_GETED).append(" set status = '3' where oa_table = '").append(currTableName).append("' and oa_table_id = '").append(currIntId).append("'");
+								currGetOaSb.append("update ").append(OA_GETED).append(" set status = '1' where oa_table = '").append(currTableName).append("' and oa_table_id = '").append(currIntId).append("'");
 								oaJdbcTemplate.update(currGetOaSb.toString());
 							}else{
 								/*
@@ -230,50 +263,144 @@ public class GetOaMessageAction {
 							
 							Object currIntIdObj  = ((Map)dagJdbcTemplate.queryForList(currInsertDagSb.toString()).get(0)).get("CUR_ID");
 							int currInt = Integer.parseInt(currIntIdObj.toString());
-							int currColLen = insertCloumns[i].split(",").length;//当前表自定义字段个数
-							String[] currColStrArr = insertCloumns[i].split(",");
+							int currColLen = insertCloumns[tblIn].split(",").length;				//当前表自定义字段个数
+							String[] currInsertColStrArr = insertCloumns[tblIn].split(",");			//插入字段
+							String[] curColValStrArr = tblCloumns_need[tblIn].split(",");			//字段值对应的字段key
 							currInsertDagSb.setLength(0);
 							currInsertDagSb.append("INSERT INTO ").append(DAG_T_AR_XZ_FILE);
-							currInsertDagSb.append("(id, TITLE_PROPER,CATALOGUE_NAME,STATUS,ARCHIVE_TYPE_ID,fonds_code,FILING_DEPT,");
+							currInsertDagSb.append("(id,CATALOGUE_NAME,STATUS,ARCHIVE_TYPE_ID,fonds_code,FILING_DEPT,");
 							for(int curColIn = 0;curColIn<currColLen;curColIn++){
-								currInsertDagSb.append("'");
-								currInsertDagSb.append(currColStrArr[curColIn]);
-								currInsertDagSb.append("'");
+								currInsertDagSb.append(currInsertColStrArr[curColIn]);
 								if(curColIn!=currColLen-1){
 									currInsertDagSb.append(",");
 								}
 							}
-							currInsertDagSb.append("VALUES(");
+							currInsertDagSb.append(")VALUES(");
 							/**
 							 * 固定字段
 							 */
 							currInsertDagSb.append(currInt+1).append(",");					//id
-							currInsertDagSb.append("'").append(currInt+1).append("',");		//TITLE_PROPER
 							currInsertDagSb.append("'").append("OA系统").append("',");		//CREATE_USER
 							currInsertDagSb.append("'").append("01").append("',");			//STATUS
-							currInsertDagSb.append("").append("10832").append(",");;		//ARCHIVE_TYPE_ID
+							currInsertDagSb.append("").append("10832").append(",");			//ARCHIVE_TYPE_ID
 							currInsertDagSb.append("'210',");								//fonds_code
 							currInsertDagSb.append("'1063',");								//FILING_DEPT
+							/**
+							 * 自定义匹配字段
+							 */
 							for(int curColIn = 0;curColIn<currColLen;curColIn++){
 								currInsertDagSb.append("'");
-								currInsertDagSb.append(((Map)currOaList.get(i)).get(currColStrArr[curColIn]));
+								//System.out.println(currOaList);
+								//System.out.println(((Map)currOaList.get(i)));
+								//System.out.println(curColValStrArr[curColIn]);
+								currInsertDagSb.append(((Map)currOaList.get(i)).get(curColValStrArr[curColIn])==null?"":((Map)currOaList.get(i)).get(curColValStrArr[curColIn]));
 								currInsertDagSb.append("'");
 								if(curColIn!=currColLen-1){
 									currInsertDagSb.append(",");
 								}
 							}
-							/**
-							 * 自定义匹配字段
-							 */
-							//for(int insertColI = 0;insertColI<10;insertColI++){
-							//}
 							currInsertDagSb.append(")");
-							
 							dagJdbcTemplate.execute(currInsertDagSb.toString());
 							/*
 							 * @step4 将对应的附件拷贝到服务器并且插入关联记录
 							 */
 							//TODO jingjianqian 
+							currGetOaSb.setLength(0);
+							currGetOaSb.append("select c_name,c_path from ").append(OA_FILE_TBL).append(" where c_mainid = '").append(currIntId).append("'");
+							List  oa_file_map = oaJdbcTemplate.queryForList(currGetOaSb.toString());
+							//System.out.println(oa_file_map);
+							if(oa_file_map.size()>0){
+								for(int currFileInt = 0;currFileInt<oa_file_map.size();currFileInt++){
+									Map currFileMap = (Map) oa_file_map.get(currFileInt);
+									StringBuilder currFileURL = new StringBuilder();
+									Object _n	 	  = currFileMap.get("c_name")==null?"":currFileMap.get("c_name");
+									Object _path 	  = currFileMap.get("c_path")==null?"":currFileMap.get("c_path");
+									String _n_code	  = java.net.URLEncoder.encode(_n.toString(),"UTF-8");
+									String _path_code = java.net.URLEncoder.encode(_path.toString(),"UTF-8");
+									currFileURL.append(OA_FILE_URL).append("n=").append(_n_code).append("&id=").append(_path_code);
+									//System.out.println(currFileURL.toString());
+									//this.downloadNet(OA_FILE_URL,_n.toString());
+									/**
+									 * @step5 将附件拷贝到服务器并且插入附件表记录到附件表
+									 * 附件表 DAG_DOCUMENT = "T_ARCHIVE_DOCUMENT";
+									 */
+								
+									StringBuilder sb = new StringBuilder();												 //文件下载基本路径
+							        Calendar date = Calendar.getInstance();												 //P@ssw0rd
+							        String year = String.valueOf(date.get(Calendar.YEAR));								 					
+							        String month = String.valueOf(date.get(Calendar.MONTH));		
+							        String rootPath = ArchiveCommon.getDocumentPath();
+							        sb.append(rootPath).append("/").append("OA").append("/").append(year).append("/").append(month).append("/");		 		//下载存放的基本路径		
+									StringBuilder xdljPath = new StringBuilder();										 //存数据库相对路径
+									xdljPath.append("/OA/").append(year + "/" + month).append("/").append(_n.toString());//相对路径
+									currInsertDagSb.setLength(0);
+									currInsertDagSb.append("SELECT MAX(ID) AS CUR_ID FROM ").append(DAG_DOCUMENT.toString());
+									Object currDocIntIdObj  = ((Map)dagJdbcTemplate.queryForList(currInsertDagSb.toString()).get(0)).get("CUR_ID");
+									//System.out.println(sb.toString());
+									new GetOaMessageAction().downloadNet(currFileURL.toString(),sb.toString(),_n.toString());
+									
+									int currDocInt = Integer.parseInt(currDocIntIdObj.toString());
+									currInsertDagSb.setLength(0);
+									
+									String _file_name = _n.toString();
+									String _file_title_proper = _file_name.substring(0,_file_name.lastIndexOf("."));
+									String _file_format = _file_name.substring(_file_name.lastIndexOf(".")+1);
+									currInsertDagSb.append("insert into ").append(DAG_DOCUMENT.toString()).append("(");
+									currInsertDagSb.append("id,"
+											+ "archive_type_id,"
+											+ "owner_id,"
+											+ "status,"
+											+ "fonds_code,"
+											+ "filing_dept,"
+											+ "title_proper,"
+											+ "version,"
+											+ "is_delete,"
+											+ "file_name,"
+											+ "path,"
+											+ "file_format,"
+											+ "file_size,"
+											+ "type,"
+											+ "key_word,"
+											+ "file_browse_path) values(");
+									currInsertDagSb.append("'").append(currDocInt+1).append("',");//---------------------id
+									currInsertDagSb.append("'").append(10832).append("',");	//---------------------------档案类型ID
+									currInsertDagSb.append("'").append(currInt+1).append("',");	//-----------------------所属条目ID
+									currInsertDagSb.append("'").append(01).append("',");	//---------------------------状态
+									currInsertDagSb.append("'").append(210).append("',");	//---------------------------所属全宗
+									currInsertDagSb.append("'").append(1063).append("',");	//---------------------------所属部门
+									currInsertDagSb.append("'").append(_file_title_proper).append("',");//---------------所属部门
+									currInsertDagSb.append("'").append(1).append("',");//--------------------------------稿本
+									currInsertDagSb.append("'").append(0).append("',");//--------------------------------删除状态
+									currInsertDagSb.append("'").append(_file_name).append("',");//-----------------------文件名称
+									currInsertDagSb.append("'").append(xdljPath).append("',");//-------------------------文件路径
+									currInsertDagSb.append("'").append(_file_format).append("',");//---------------------文件后缀
+									currInsertDagSb.append("'").append(0).append("',");//--------------------------------大小
+									currInsertDagSb.append("'").append(2).append("',");//--------------------------------附件类型
+									currInsertDagSb.append("'").append("OA").append("',");//-----------------------------附件类型
+									currInsertDagSb.append("'").append(xdljPath).append("')");//-------------------------浏览路径
+									dagJdbcTemplate.execute(currInsertDagSb.toString());
+									
+									/**
+									 * @step6 处理没有标题的条码  currIntId+1
+									 */
+									currInsertDagSb.setLength(0);
+									currInsertDagSb.append("SELECT TITLE_PROPER  FROM ").append(DAG_T_AR_XZ_FILE).append(" t where t.id = '").append(currInt+1).append("'");
+									List _title_list = dagJdbcTemplate.queryForList(currInsertDagSb.toString());
+									if(_title_list.size()>0){
+										for(int currTitleLIndex = 0;currTitleLIndex<_title_list.size();currTitleLIndex++){
+											Map currTitleLMap = (Map) _title_list.get(currTitleLIndex);
+											Object _titles = currTitleLMap.get("TITLE_PROPER")==null?"":currTitleLMap.get("TITLE_PROPER");
+											String _titStr = _titles.toString();
+											if(_titStr.equals("")){
+												//System.out.println(_file_title_proper);
+												currInsertDagSb.setLength(0);
+												currInsertDagSb.append("update ").append(DAG_T_AR_XZ_FILE).append(" set TITLE_PROPER = '").append(_file_title_proper).append("' where id = '").append(currInt+1).append("'");
+												dagJdbcTemplate.execute(currInsertDagSb.toString());
+											}
+										}
+									}
+								}
+							}
 							/*
 							 * @step5 将中间表状态修改为已经处理状态 2
 							 */
@@ -282,17 +409,104 @@ public class GetOaMessageAction {
 							oaJdbcTemplate.update(currGetOaSb.toString());
 						}
 					}else{
-						System.out.println(currOaList.size());
+						//System.out.println(currOaList.size());
 					}
 				}
 			} catch (Exception e) {
+				/**
+				 * 报错标记
+				 */
+				if(currOATableName!=null&&currOATableID!=null){
+					
+					
+					currGetOaSb.setLength(0);
+					currGetOaSb.append("update ").append(OA_GETED).append(" set status = '1' where oa_table = '").append(currOATableName).append("' and oa_table_id = '").append(currOATableID).append("'");
+					oaJdbcTemplate.update(currGetOaSb.toString());
+					
+					
+					//rollBackSb.setLength(0);
+					//rollBackSb.append("DELETE FROM ").append(OA_GETED).append("  WHERE OA_TABLE = '").append(currOATableName).append("' and OA_TABLE_ID = '").append(currOATableID).append("'");
+					//System.out.println(rollBackSb.toString());
+					try{
+						oaJdbcTemplate.execute(currGetOaSb.toString());
+					}catch(Exception error){
+						error.printStackTrace();
+					}
+				}
 				e.printStackTrace();
 			}finally{
 				this.thisTaskStatus = 0;
 			}
 		}
 	}
-	
+	/**
+	 * main方法测
+	 * @param args
+	 * @throws MalformedURLException
+	 */
+	public static void main(String args[]) throws MalformedURLException{
+		 String cesRoot = System.getProperty("cesRoot");
+		 System.out.println(cesRoot);
+		/*StringBuilder sb = new StringBuilder();									//文件下载基本路径
+        Calendar date = Calendar.getInstance();									
+        String year = String.valueOf(date.get(Calendar.YEAR));					
+        String month = String.valueOf(date.get(Calendar.MONTH));				
+        
+		sb.append("E:/gdda_files/affix/OA/").append(year + "/" + month).append("/");		
+		
+		//System.out.println(sb.toString());
+		StringBuilder xdljPath = new StringBuilder();							//存数据库相对路径
+		xdljPath.append("/OA/").append(year + "/" + month).append("/").append("201805301616510.doc".toString());
+		System.out.println(xdljPath.append("").toString());
+		
+		new GetOaMessageAction().downloadNet("http://210.34.213.66/servlet/ArchiveFileServlet?n=201805301616510.doc&"
+				+ "id=%2F2018%2F06%2F5D808E798695E004482582A200305F92%2F201805301616510.doc",sb.toString(),"test.doc");*/
+	}
+	/**
+	 * 下载文件方法
+	 * @param urlPath
+	 * @param basePath
+	 * @param fileName
+	 * @throws MalformedURLException
+	 */
+	public void downloadNet(String urlPath,String basePath,String fileName) throws MalformedURLException {
+        // 下载网络文件
+        int bytesum = 0;
+        int byteread = 0;
+
+        URL url = new URL(urlPath);
+       
+        StringBuilder filePath = new StringBuilder();
+       // System.out.println(fileName);
+        filePath.append(basePath);
+        File file = new File(filePath.toString());
+        if(!file.exists()){
+        	file.mkdirs();
+        }
+        filePath.append(fileName);
+        try {
+            URLConnection conn = (URLConnection) url.openConnection();
+            InputStream inStream = conn.getInputStream();
+            FileOutputStream fs = new FileOutputStream(filePath.toString());
+            byte[] buffer = new byte[1204];
+            int length;
+            while ((byteread = inStream.read(buffer)) != -1) {
+                bytesum += byteread;
+                fs.write(buffer, 0, byteread);
+            }
+            fs.close();
+            inStream.close();
+        } catch (Exception e) {
+        	e.printStackTrace();
+        }finally{
+        	/*try {
+        		inStream.close();
+				fs.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}*/
+        }
+    }
 	/**
 	 * setter and getter
 	 * @return
@@ -312,35 +526,5 @@ public class GetOaMessageAction {
 	public void setDagJdbcTemplate(JdbcTemplate dagJdbcTemplate) {
 		this.dagJdbcTemplate = dagJdbcTemplate;
 	}
-	/**
-	 * NO1  #教务处招生办公文处理单
-	 * =============================================
-	 *  c_s_DocNo,c_Type  ,c_QFMan,c_QFDate,c_Importance,c_overtime,c_closedata,c_Urgency,c_reason,c_Date ,c_Writer,c_Dept  ,c_Notions_BMLD,c_Notion_HG,c_Notions_FGXLD,c_Title,c_SendUnit,c_Phone,c_KeyWords,c_PrnCopies,c_ToInUnit,c_CcInUnit
-		发文字号	 ,发文类型 ,签发人  ,签发日期  ,密级                ,保密期限     ,保密日期       ,缓急          ,定密依据 ,拟稿日期,拟稿人     ,拟稿处室,本部门领导核稿  ,相关部门会稿,分管校领导签发   ,题名       ,发文单位     ,电话       ,主题词        ,打印份数       ,主送单位     ,抄送单位
-	 * =============================================
-	 */
-	//需要的字段
-	/*StringBuilder OA_CWC_SEND_CL_SB = new StringBuilder();
-	OA_CWC_SEND_CL_SB.append("c_id,c_s_DocNo,c_Type  ,c_QFMan,c_QFDate,c_Importance,c_overtime,c_closedata,c_Urgency,c_reason,c_Date ,c_Writer,c_Dept ,");
-	OA_CWC_SEND_CL_SB.append("c_Notions_BMLD,c_Notion_HG,c_Notions_FGXLD,c_Title,c_SendUnit,c_Phone,c_KeyWords,c_PrnCopies,c_ToInUnit,c_CcInUnit");
-	//拼接SQL
-	StringBuilder get_OA_CWC_SEND_SB_SQL = new StringBuilder();
-	
-	get_OA_CWC_SEND_SB_SQL.append(" select ");
-	get_OA_CWC_SEND_SB_SQL.append(OA_CWC_SEND_CL_SB.toString());
-	get_OA_CWC_SEND_SB_SQL.append(" from ");
-	get_OA_CWC_SEND_SB_SQL.append(OA_KJC_SEND).append(" t ");
-	get_OA_CWC_SEND_SB_SQL.append(" where not EXISTS ");
-	get_OA_CWC_SEND_SB_SQL.append(" (select 1 from ").append(OA_GETED).append(" p where t.c_id = p.oa_table_id) ");
-	get_OA_CWC_SEND_SB_SQL.append(" limit 0,100 ");
-	
-	@SuppressWarnings("rawtypes")
-	List tempCWCList = oaJdbcTemplate.queryForList(get_OA_CWC_SEND_SB_SQL.toString());
-	if(tempCWCList.size()>0){
-		for(int i = 0 ; i < tempCWCList.size() ; i++) {
-			  Map tempMap =  (Map) tempCWCList.get(i);
-			System.out.println(tempMap.get("c_id"));
-			}
-	}*/
 	
 }
