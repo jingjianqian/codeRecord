@@ -23,7 +23,7 @@
           <mxGeometry x="-760" y="470" width="450" height="180" as="geometry" />
         </mxCell>
         <mxCell id="IwXQZZdpTk_y1tESCrXB-6" value="数据交汇服务器1" style="whiteSpace=wrap;html=1;fillColor=#dae8fc;fontSize=14;strokeColor=none;verticalAlign=top;" vertex="1" parent="1">
-          <mxGeometry x="-1260" y="1040" width="450" height="180" as="geometry" />
+          <mxGeometry x="-1250" y="1050" width="450" height="180" as="geometry" />
         </mxCell>
         <mxCell id="IwXQZZdpTk_y1tESCrXB-7" value="存储服务器1" style="whiteSpace=wrap;html=1;fillColor=#dae8fc;fontSize=14;strokeColor=none;verticalAlign=top;" vertex="1" parent="1">
           <mxGeometry x="-260" y="1070" width="450" height="180" as="geometry" />
